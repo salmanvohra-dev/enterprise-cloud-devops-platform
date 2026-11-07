@@ -46,3 +46,47 @@ Zero-Downtime Deployments: Configured ASG Instance Refreshes with health checks 
 Supply Chain Security: Integrated image signing and vulnerability checks before hitting production servers.
 
 Cost & Scalability Mindset: Designed with vertical scaling patterns and future-proof migration paths for database workloads.
+
+# 🚀 Enterprise Cloud & DevSecOps Platform (AWS EKS)
+
+> Production-grade Kubernetes platform on AWS using Terraform, Karpenter v1, and GitOps.
+
+[![Status](https://img.shields.io/badge/Status-In%20Progress%20(Phase%201)-blue?style=flat-square)](https://github.com/)
+
+---
+
+### 📌 What This Is
+Multi-AZ AWS EKS cluster automated end-to-end via Terraform, featuring sub-second node autoscaling via Karpenter v1 and declarative GitOps continuous delivery.
+
+### 🛠️ Tech Stack
+* **Cloud & IaC:** AWS (EKS, VPC, IAM IRSA), Terraform
+* **Orchestration & Scaling:** Kubernetes, Karpenter v1 (`NodePool`, `EC2NodeClass`)
+* **Traffic & Security:** AWS Load Balancer Controller, Istio (mTLS), cert-manager
+* **GitOps & Monitoring:** ArgoCD, Prometheus, Grafana, Metrics Server
+
+---
+
+### 🏗️ Architecture Flow
+`Traffic` ➔ `AWS ALB` ➔ `Istio Ingress` ➔ `EKS Pods (Private Subnets)` ➔ `Karpenter Auto-provisioned EC2 (Spot/On-Demand)`
+
+---
+
+### 🚧 Roadmap & Current Status
+- [x] Multi-AZ VPC & Modular Terraform Foundation
+- [x] EKS Control Plane + IAM OIDC (IRSA)
+- [x] Karpenter v1 Dynamic Autoscaling Setup
+- [ ] AWS Load Balancer Controller & SSL (cert-manager)
+- [ ] ArgoCD GitOps & Microservices Deployment
+- [ ] Istio Zero-Trust Mesh & RED Observability
+
+---
+
+### 🚀 Quick Start
+```bash
+# Provision Core Infra
+cd terraform/environments/prod
+terraform init && terraform apply
+
+# Apply Karpenter Scalers
+kubectl apply -f k8s/EC2NodeClass.yaml
+kubectl apply -f k8s/NodePool.yaml
