@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: 'https://github.com/salmanvohra-dev/enterprise-cloud-devops-platform.git'
     targetRevision: main
-    path: k8s/apps/canteen-backend
+    path: project-3-enterprise-cloud-devops-platform/k8s/apps/canteen-backend
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: prod
