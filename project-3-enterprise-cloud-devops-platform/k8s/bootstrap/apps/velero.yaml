@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://vmware-tanzu.github.io/helm-charts'
+    chart: velero
+    targetRevision: 7.2.1
+    helm:
+      values: |
+        initContainers:
+          - name: velero-plugin-for-aws
+            image: velero/velero-plugin-for-aws:v1.10.1
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - mountPath: /target
+                name: plugins
+
+        configuration:
+          backupStorageLocation:
+            - name: default
+              provider: aws
+              bucket: <TERE_S3_BUCKET_KA_NAAM>
+              config:
+                region: us-east-1
+          volumeSnapshotLocation:
+            - name: default
+              provider: aws
+              config:
+                region: us-east-1
+
+        serviceAccount:
+          server:
+            create: true
+            name: velero-server
+            annotations:
+              eks.amazonaws.com/role-arn: <TERE_VELERO_IAM_ROLE_ARN>
+
+        credentials:
+          useSecret: false
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        schedules: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

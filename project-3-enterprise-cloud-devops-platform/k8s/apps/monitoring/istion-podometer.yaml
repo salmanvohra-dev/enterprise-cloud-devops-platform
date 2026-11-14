@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-envoy-stats-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchExpressions:
+      - key: security.istio.io/tlsMode
+        operator: Exists
+  namespaceSelector:
+    matchNames:
+      - prod
+  podMetricsEndpoints:
+    - path: /stats/prometheus
+      port: http-envoy-prom
+      interval: 15s

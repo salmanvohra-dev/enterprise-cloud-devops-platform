@@ -1,0 +1,27 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiFamily: AL2023 # Amazon Linux 2023
+
+  # CHANGE 1: Karpenter v1 mein ye block mandatory hai AMI auto-select karne ke liye
+  amiSelectorTerms:
+    - alias: al2023@latest # Official EKS-optimized AL2023 AMI dynamically fetch karega
+
+  # CHANGE 2: ${cluster_name} variable plain YAML mein kaam nahi karta, yahan actual cluster naam aayega
+  role: "enterprise-eks-prod-karpenter-node-role"
+
+  subnetSelectorTerms:
+    - tags:
+        # Actual cluster discovery tag jisse subnets match honge
+        karpenter.sh/discovery: "enterprise-eks-prod"
+
+  securityGroupSelectorTerms:
+    - tags:
+        # Actual cluster discovery tag jisse node security group match hoga
+        karpenter.sh/discovery: "enterprise-eks-prod"
+
+  tags:
+    Name: karpenter-node-enterprise-eks-prod
+    Environment: prod

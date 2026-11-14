@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app-ingress
+  namespace: default
+  annotations:
+    # 1. Controller ko batao ki IngressClass AWS ALB hai
+    kubernetes.io/ingress.class: alb
+    
+    # 2. Public internet se accessible banana hai (private VPC ke bahar)
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    
+    # 3. Traffic sidha Pod ki IP par bhejo (NodePort ki zaroorat nahi)
+    alb.ingress.kubernetes.io/target-type: ip
+    
+    # 4. Health check endpoint taaki ALB check kare app zinda hai ya nahi
+    alb.ingress.kubernetes.io/healthcheck-path: /
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: demo-app-service
+                port:
+                  number: 80
