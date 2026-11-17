@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: canteen-backend-vs
+  namespace: prod
+spec:
+  hosts:
+    - canteen-backend-svc.prod.svc.cluster.local
+  http:
+    - route:
+        - destination:
+            host: canteen-backend-svc.prod.svc.cluster.local
+            subset: v1
+          weight: 90
+        - destination:
+            host: canteen-backend-svc.prod.svc.cluster.local
+            subset: v2
+          weight: 10

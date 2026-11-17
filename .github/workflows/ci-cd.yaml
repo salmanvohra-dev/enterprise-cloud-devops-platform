@@ -1,0 +1,159 @@
+name: SmartBite Enterprise DevSecOps CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'project-3-enterprise-cloud-devops-platform/k8s/**' # Prevent infinite GitOps commit loop
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write   # Required for AWS OIDC & Cosign keyless signing
+  contents: write   # Required for GitOps manifest tag update
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: smartbite-backend
+  K8S_MANIFEST_PATH: project-3-enterprise-cloud-devops-platform/k8s/apps/canteen-backend/app.yaml
+
+jobs:
+  # ==========================================================
+  # STAGE 1: SECRET SCANNING & SAST (SHIFT-LEFT SECURITY)
+  # ==========================================================
+  devsecops-code-scan:
+    name: Secret Scan & SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret Detection (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Dependency Vulnerability Audit
+        working-directory: ./backend
+        run: npm audit --audit-level=high || true
+
+      - name: SonarCloud SAST Scan
+        if: ${{ vars.SONAR_ENABLED == 'true' }}
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ==========================================================
+  # STAGE 2: BUILD, TRIVY SCAN, SIGN & PUSH TO AWS ECR
+  # ==========================================================
+  build-scan-push:
+    name: Build, Trivy Scan & ECR Push
+    needs: devsecops-code-scan
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set Immutable Image Tag (Git SHA)
+        id: meta
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Production Docker Image (Local Tar for Scanning)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: ${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy Container Vulnerability Scan (Gatekeeper)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Configure AWS Credentials via OIDC
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag & Push Image to Amazon ECR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: push-ecr
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG)" >> $GITHUB_OUTPUT
+
+      - name: Install Cosign for Supply-Chain Image Signing
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign Container Image with Cosign (Keyless OIDC)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes ${{ steps.push-ecr.outputs.digest }}
+
+  # ==========================================================
+  # STAGE 3: GITOPS MANIFEST UPDATE FOR ARGOCD (EKS)
+  # ==========================================================
+  gitops-deploy:
+    name: Update GitOps Manifest (ArgoCD Sync)
+    needs: build-scan-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Image Tag in Kubernetes Manifest
+        env:
+          NEW_TAG: ${{ needs.build-scan-push.outputs.image_tag }}
+        run: |
+          sed -i "s|\(${{ env.ECR_REPOSITORY }}:\)[a-zA-Z0-9._-]*|\1${NEW_TAG}|g" ${{ env.K8S_MANIFEST_PATH }}
+
+      - name: Commit & Push GitOps Tag Update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.K8S_MANIFEST_PATH }}
+          git diff --staged --quiet || git commit -m "chore(gitops): deploy smartbite-backend ${{ needs.build-scan-push.outputs.image_tag }} [skip ci]"
+          git push
