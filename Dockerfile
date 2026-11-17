@@ -2,7 +2,7 @@
 # STAGE 1: DEPENDENCY BUILDER
 # ==========================================
 FROM node:20-alpine AS builder
-
+RUN npm install -g npm@latest
 WORKDIR /app/backend
 
 # Copy package manifests first for optimal Docker layer caching

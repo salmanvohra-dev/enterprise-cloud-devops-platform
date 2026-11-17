@@ -17,7 +17,7 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "mongoose": "^9.9.1",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^10.6.0",
     "path-to-regexp": "^0.1.12",
     "razorpay": "^2.9.8"
   }
