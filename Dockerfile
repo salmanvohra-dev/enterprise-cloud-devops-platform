@@ -28,8 +28,9 @@ COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 COPY images/ ./images/
 
-# Security: Switch to non-root 'node' user (prevents container breakout)
-RUN chown -R node:node /app
+# Security: Remove unused npm CLI while still root, then switch to non-root 'node' user
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx && \
+    chown -R node:node /app
 USER node
 
 WORKDIR /app/backend
@@ -39,6 +40,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 CMD ["node", "server.js"]
