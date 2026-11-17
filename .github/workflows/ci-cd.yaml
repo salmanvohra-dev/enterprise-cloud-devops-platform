@@ -65,6 +65,9 @@ jobs:
     name: Build, Trivy Scan & ECR Push
     needs: devsecops-code-scan
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     outputs:
       image_tag: ${{ steps.meta.outputs.tag }}
     steps:
@@ -97,6 +100,14 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
+      - name: Verify OIDC & Role Secret Presence
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "Role ARN length: ${#ROLE_ARN}"
+          echo "OIDC URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+YES}"
+        env:
+          ROLE_ARN: ${{ secrets.AWS_IAM_ROLE_ARN }}
 
       - name: Configure AWS Credentials via OIDC
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -140,6 +151,8 @@ jobs:
     needs: build-scan-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
