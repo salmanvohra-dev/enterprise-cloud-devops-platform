@@ -1,3 +1,4 @@
+# SmartBite Enterprise DevSecOps Pipeline - Verified OIDC & Trivy Gatekeeper
 name: SmartBite Enterprise DevSecOps CI/CD
 
 on:
@@ -10,6 +11,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
 
 permissions:
   id-token: write   # Required for AWS OIDC & Cosign keyless signing
