@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: 495783434953.dkr.ecr.ap-south-1.amazonaws.com/smartbite-backend:sha-8a75623
+          image: 495783434953.dkr.ecr.ap-south-1.amazonaws.com/smartbite-backend:sha-5aade74
           ports:
             - containerPort: 80
           resources:
