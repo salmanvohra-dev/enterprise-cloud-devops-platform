@@ -151,8 +151,8 @@ app.use(session({
 app.use(express.static(path.join(__dirname, '../frontend/views')));
 app.use('/images', express.static(path.join(__dirname, '../frontend/images')));
 
-// Connect to Local MongoDB
-mongoose.connect('mongodb://127.0.0.1:27017/canteenDB')
+const mongoURI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/canteenDB';
+mongoose.connect(mongoURI)
     .then(() => console.log('✅ Connected to MongoDB Successfully!'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
